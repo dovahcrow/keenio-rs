@@ -7,6 +7,7 @@ use std::*;
 use chrono::*;
 use hyper::Client;
 
+#[derive(Clone)]
 pub struct KeenClient {
     key: String,
     project: String
@@ -33,6 +34,7 @@ impl KeenClient {
     }
 }
 
+#[derive(Clone)]
 pub struct KeenQuery<'a> {
     client: &'a KeenClient,
     debug: bool,
@@ -100,17 +102,18 @@ impl<'a> KeenQuery<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum TimeFrame {
-    Rel(String),
-    Abs(DateTime<UTC>, DateTime<UTC>)
+    Relative(String),
+    Absolute(DateTime<UTC>, DateTime<UTC>)
 }
 
 impl fmt::Display for TimeFrame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use TimeFrame::*;
         let s = match self {
-            &Rel(ref s) => s.clone(),
-            &Abs(f, t) => {
+            &Relative(ref s) => s.clone(),
+            &Absolute(f, t) => {
                 format!(r#"{{"start":"{}","end":"{}"}}"#, f, t)
             }
         };
@@ -118,6 +121,7 @@ impl fmt::Display for TimeFrame {
     }
 }
 
+#[derive(Clone)]
 pub struct Filter {
     property_name: String,
     property_value: String,
@@ -140,6 +144,7 @@ impl fmt::Display for Filter {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub enum Operator {
     Eq,
     Ne,
@@ -164,22 +169,39 @@ impl fmt::Display for Operator {
     }
 }
 
+#[derive(Clone)]
 pub enum Metric {
+    Sum(String),
     Count,
-    CountUnique(String)
+    CountUnique(String),
+    Minimum(String),
+    Maximum(String),
+    Average(String),
+    SelectUnique(String),
+    Extraction,
+    Percentile(String, f64),
+    Median(String)
 }
 
 impl fmt::Display for Metric {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Metric::*;
         match self {
+            &Sum(ref s) => write!(f, r#"sum?target_property={}"#, s),
             &Count => write!(f, r#"count?"#),
             &CountUnique(ref s) => write!(f, r#"count_unique?target_property={}"#, s),
+            &Minimum(ref s) => write!(f, r#"minimum?target_property={}"#, s),
+            &Maximum(ref s) => write!(f, r#"maximum?target_property={}"#, s),
+            &Average(ref s) => write!(f, r#"average?target_property={}"#, s),
+            &SelectUnique(ref s) => write!(f, r#"select_unique?target_property={}"#, s),
+            &Extraction => write!(f, r#"extraction"#),
+            &Percentile(ref s, p) => write!(f, r#"percentile?target_property={}&percentile={}"#, s, p),
+            &Median(ref s) => write!(f, r#"median?target_property={}"#, s),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Interval {
     Minutely,
     Hourly,
@@ -197,4 +219,19 @@ impl fmt::Display for Interval {
 
 #[test]
 fn it_works() {
+    let cl = KeenClient::new("your keen io api key", "your project id");
+    let m = Metric::CountUnique("metric1".into());
+    let c = "collection_name".into();
+    let from = UTC::now() - Duration::days(2);
+    let from_str = format!("{}", from);
+    let to =  UTC::now();
+    let to_str = format!("{}", to);
+    let t = TimeFrame::Absolute(from, to);
+    let mut q = cl.query(m, c, t);
+    q.add_group("group1");
+    q.add_group("group2");
+    q.add_filter(Filter::new("id", Operator::Gt, "458888"));
+    q.add_filter(Filter::new("id", Operator::Lte, "460000"));
+    q.interval(Interval::Monthly);
+    assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":"458888","operator":"gt"}},{{"property_name":"id","property_value":"460000","operator":"lte"}}]&interval=monthly"#, from_str, to_str));
 }

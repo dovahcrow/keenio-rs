@@ -9,7 +9,7 @@ fn main() {
     let cl = KeenClient::new("your keen io api key", "you project id");
     let m = Metric::CountUnique("metric1".into());
     let c = "collection_name".into();
-    let t = TimeFrame::Abs(UTC::now() - Duration::days(2), UTC::now());
+    let t = TimeFrame::Absolute(UTC::now() - Duration::days(2), UTC::now());
     let mut q = cl.query(m, c, t);
     q.add_group("group1");
     q.add_group("group2");
