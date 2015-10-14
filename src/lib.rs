@@ -217,6 +217,12 @@ impl ToFilterValue for String {
     }
 }
 
+impl<'a> ToFilterValue for &'a String {
+    fn to_filter(&self) -> String {
+        format!(r#""{}""#, self)
+    }
+}
+
 #[derive(Clone)]
 pub enum Metric {
     Sum(String),
