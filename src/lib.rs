@@ -29,7 +29,8 @@ impl KeenClient {
             timeframe: timeframe,
             group_by: vec![],
             filters: vec![],
-            interval: None
+            interval: None,
+            max_age: None
         }
     }
 }
@@ -43,7 +44,8 @@ pub struct KeenQuery<'a> {
     timeframe: TimeFrame,
     group_by: Vec<String>,
     filters: Vec<Filter>,
-    interval: Option<Interval>
+    interval: Option<Interval>,
+    max_age: Option<usize>
 }
 
 impl<'a> KeenQuery<'a> {
@@ -51,11 +53,11 @@ impl<'a> KeenQuery<'a> {
         self.debug = d;
         self
     }
-    pub fn add_group(&mut self, g: &str) -> &mut KeenQuery<'a> {
+    pub fn group_by(&mut self, g: &str) -> &mut KeenQuery<'a> {
         self.group_by.push(g.into());
         self
     }
-    pub fn add_filter(&mut self, f: Filter) -> &mut KeenQuery<'a> {
+    pub fn filter(&mut self, f: Filter) -> &mut KeenQuery<'a> {
         self.filters.push(f);
         self
     }
@@ -63,9 +65,13 @@ impl<'a> KeenQuery<'a> {
         self.interval = Some(i);
         self
     }
+    pub fn max_age(&mut self, age: usize) -> &mut KeenQuery<'a> {
+        self.max_age = Some(age);
+        self
+    }
     pub fn url(&self) -> String {
         let mut s = format!(
-            "https://api.keen.io/3.0/projects/{project}/queries/{metric}&api_key={key}&event_collection={collection}&group_by={group}&timezone=UTC&timeframe={timeframe}&filters={filters}",
+            "https://api.keen.io/3.0/projects/{project}/queries/{metric}api_key={key}&event_collection={collection}&group_by={group}&timezone=UTC&timeframe={timeframe}&filters={filters}",
             project = self.client.project,
             metric = self.metric,
             key = self.client.key,
@@ -74,6 +80,7 @@ impl<'a> KeenQuery<'a> {
             timeframe = self.timeframe,
             filters = KeenQuery::format_filter(&self.filters));
         self.interval.as_ref().map(|i| s.push_str(&format!("&interval={}", i)));
+        self.max_age.as_ref().map(|a| s.push_str(&format!("&max_age={}", a)));
         s
     }
     fn format_group(g: &[String]) -> String {
@@ -84,7 +91,7 @@ impl<'a> KeenQuery<'a> {
             r.push_str(&s);
             r.push('"');
             r
-        }).fold1(|mut a, s| {a.push(',');a.push_str(&s);a}).unwrap_or("".into()));
+        }).join(","));
         s.push(']');
         s
     }
@@ -93,7 +100,7 @@ impl<'a> KeenQuery<'a> {
         s.push('[');
         s.push_str(&f.iter().map(|s| {
             format!("{}", s)
-        }).fold1(|mut a, s| {a.push(',');a.push_str(&s);a}).unwrap_or("".into()));
+        }).join(","));
         s.push(']');
         s
     }
@@ -121,51 +128,92 @@ impl fmt::Display for TimeFrame {
     }
 }
 
-#[derive(Clone)]
-pub struct Filter {
-    property_name: String,
-    property_value: String,
-    operator: Operator
-}
-
-impl Filter {
-    pub fn new(name: &str, operator: Operator, value: &str) -> Filter {
-        Filter {
-            property_name: name.into(),
-            property_value: value.into(),
-            operator: operator
-        }
-    }
-}
-
 impl fmt::Display for Filter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"{{"property_name":"{}","property_value":"{}","operator":"{}"}}"#, self.property_name, self.property_value, self.operator)
+        use Filter::*;
+        let (name, op, value) = match self {
+            &Eq(ref f, ref v) => (f, "eq", v),
+            &Ne(ref f, ref v) => (f, "ne", v),
+            &Lt(ref f, ref v) => (f, "lt", v),
+            &Gt(ref f, ref v) => (f, "gt", v),
+            &Lte(ref f, ref v) => (f, "lte", v),
+            &Gte(ref f, ref v) => (f, "gte", v),
+            &NotContains(ref f, ref v) => (f, "not_contains", v),
+            &Contains(ref f, ref v) => (f, "contains", v),
+            &Exists(ref f, ref v) => (f, "exists", v),
+        };
+        write!(f, r#"{{"property_name":"{}","property_value":{},"operator":"{}"}}"#, name, value, op)
     }
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum Operator {
-    Eq,
-    Ne,
-    Lt,
-    Gt,
-    Lte,
-    Gte,
+pub enum Filter {
+    Eq(String, String),
+    Ne(String, String),
+    Lt(String, String),
+    Gt(String, String),
+    Lte(String, String),
+    Gte(String, String),
+    NotContains(String, String),
+    Contains(String, String),
+    Exists(String, String)
 }
 
-impl fmt::Display for Operator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use Operator::*;
-        let s = match self {
-            &Eq => "eq",
-            &Ne => "ne",
-            &Lt => "lt",
-            &Gt => "gt",
-            &Lte => "lte",
-            &Gte => "gte"
-        };
-        write!(f, "{}", s)
+impl Filter {
+    pub fn eq<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Eq(name.into(), value.to_filter())
+    }
+    pub fn ne<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Ne(name.into(), value.to_filter())
+    }
+    pub fn lt<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Lt(name.into(), value.to_filter())
+    }
+    pub fn gt<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Gt(name.into(), value.to_filter())
+    }
+    pub fn lte<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Lte(name.into(), value.to_filter())
+    }
+    pub fn gte<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Gte(name.into(), value.to_filter())
+    }
+    pub fn contains<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Contains(name.into(), value.to_filter())
+    }
+    pub fn not_contains<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::NotContains(name.into(), value.to_filter())
+    }
+    pub fn exists<T>(name: &str, value: T) -> Filter where T: ToFilterValue {
+        Filter::Exists(name.into(), value.to_filter())
+    }
+}
+
+pub trait ToFilterValue {
+    fn to_filter(&self) -> String;
+}
+
+macro_rules! numeric_impl {
+    ($($t: ty)+) => {
+        $(impl ToFilterValue for $t {
+            fn to_filter(&self) -> String {
+                format!("{}", self)
+            }
+        })+
+    }
+}
+
+numeric_impl!(i32 i64 isize usize u32 u64 f32 f64);
+
+impl<'a> ToFilterValue for &'a str {
+    fn to_filter(&self) -> String {
+        format!(r#""{}""#, self)
+    }
+}
+
+impl ToFilterValue for String {
+    fn to_filter(&self) -> String {
+        format!(r#""{}""#, self)
     }
 }
 
@@ -187,16 +235,16 @@ impl fmt::Display for Metric {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Metric::*;
         match self {
-            &Sum(ref s) => write!(f, r#"sum?target_property={}"#, s),
+            &Sum(ref s) => write!(f, r#"sum?target_property={}&"#, s),
             &Count => write!(f, r#"count?"#),
-            &CountUnique(ref s) => write!(f, r#"count_unique?target_property={}"#, s),
-            &Minimum(ref s) => write!(f, r#"minimum?target_property={}"#, s),
-            &Maximum(ref s) => write!(f, r#"maximum?target_property={}"#, s),
-            &Average(ref s) => write!(f, r#"average?target_property={}"#, s),
-            &SelectUnique(ref s) => write!(f, r#"select_unique?target_property={}"#, s),
+            &CountUnique(ref s) => write!(f, r#"count_unique?target_property={}&"#, s),
+            &Minimum(ref s) => write!(f, r#"minimum?target_property={}&"#, s),
+            &Maximum(ref s) => write!(f, r#"maximum?target_property={}&"#, s),
+            &Average(ref s) => write!(f, r#"average?target_property={}&"#, s),
+            &SelectUnique(ref s) => write!(f, r#"select_unique?target_property={}&"#, s),
             &Extraction => write!(f, r#"extraction"#),
-            &Percentile(ref s, p) => write!(f, r#"percentile?target_property={}&percentile={}"#, s, p),
-            &Median(ref s) => write!(f, r#"median?target_property={}"#, s),
+            &Percentile(ref s, p) => write!(f, r#"percentile?target_property={}&percentile={}&"#, s, p),
+            &Median(ref s) => write!(f, r#"median?target_property={}&"#, s),
         }
     }
 }
@@ -228,10 +276,11 @@ fn it_works() {
     let to_str = format!("{}", to);
     let t = TimeFrame::Absolute(from, to);
     let mut q = cl.query(m, c, t);
-    q.add_group("group1");
-    q.add_group("group2");
-    q.add_filter(Filter::new("id", Operator::Gt, "458888"));
-    q.add_filter(Filter::new("id", Operator::Lte, "460000"));
-    q.interval(Interval::Monthly);
-    assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":"458888","operator":"gt"}},{{"property_name":"id","property_value":"460000","operator":"lte"}}]&interval=monthly"#, from_str, to_str));
+    q.group_by("group1")
+        .group_by("group2")
+        .filter(Filter::gt("id", 458888))
+        .filter(Filter::lte("id", 460000))
+        .interval(Interval::Monthly);
+
+    assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":458888,"operator":"gt"}},{{"property_name":"id","property_value":460000,"operator":"lte"}}]&interval=monthly"#, from_str, to_str));
 }
