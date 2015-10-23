@@ -10,15 +10,20 @@ use hyper::Client;
 #[derive(Clone)]
 pub struct KeenClient {
     key: String,
-    project: String
+    project: String,
+    timeout: Option<time::Duration>
 }
 
 impl KeenClient {
     pub fn new(key: &str, project: &str) -> KeenClient {
         KeenClient {
             key: key.into(),
-            project: project.into()
+            project: project.into(),
+            timeout: None
         }
+    }
+    pub fn timeout(&mut self, time: time::Duration) {
+        self.timeout = Some(time)
     }
     pub fn query(&self, m: Metric, c: String, timeframe: TimeFrame) -> KeenQuery {
         KeenQuery {
@@ -105,7 +110,12 @@ impl<'a> KeenQuery<'a> {
         s
     }
     pub fn data(&self) -> hyper::Result<hyper::client::Response> {
-        Client::new().get(&self.url()).send()
+        self.client.timeout.map(|t| {
+            let mut client = Client::new();
+            client.set_read_timeout(Some(t));
+            client.set_write_timeout(Some(t));
+            client
+        }).unwrap_or(Client::new()).get(&self.url()).send()
     }
 }
 
