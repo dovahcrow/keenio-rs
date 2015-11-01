@@ -5,6 +5,7 @@ authors = ["Wu Young <doomsplayer@gmail.com>"]
 description = "keen.io api v3.0 for rust"
 homepage = "http://github.com/doomsplayer/keenio-rs.git"
 repository = "http://github.com/doomsplayer/keenio-rs.git"
+documentation = "http://doomsplayer.github.io/keenio-rs/keen/index.html"
 readme = "README.md"
 keywords = ["keenio", "keen"]
 license = "MIT"
