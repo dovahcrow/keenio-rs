@@ -1,6 +1,6 @@
 [package]
 name = "keen"
-version = "0.3.0"
+version = "1.0.0"
 authors = ["Wu Young <doomsplayer@gmail.com>"]
 description = "keen.io api v3.0 for rust"
 homepage = "http://github.com/doomsplayer/keenio-rs.git"
@@ -16,6 +16,16 @@ name = "keen"
 [dependencies]
 chrono = "0.2.16"
 itertools = "0.4.0"
+
 [dependencies.hyper]
 version = "0.6.15"
 features = ["timeouts"]
+
+[dependencies.clippy]
+version = "0.0.21"
+optional = true
+
+[features]
+default = []
+dev = ["clippy"]
+

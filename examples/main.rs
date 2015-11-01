@@ -12,10 +12,10 @@ fn main() {
     let t = TimeFrame::Absolute(UTC::now() - Duration::days(2), UTC::now());
     let mut q = cl.query(m, c, t);
     q.group_by("group1")
-        .group_by("group2")
-        .filter(Filter::gt("id", "458888"))
-        .filter(Filter::lte("id", "460000"))
-        .interval(Interval::Monthly);
+     .group_by("group2")
+     .filter(Filter::gt("id", "458888"))
+     .filter(Filter::lte("id", "460000"))
+     .interval(Interval::Monthly);
     let mut resp = q.data().unwrap();
     let mut s = String::new();
     let _ = resp.read_to_string(&mut s);
