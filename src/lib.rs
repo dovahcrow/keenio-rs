@@ -188,6 +188,7 @@ impl fmt::Display for Filter {
             NotContains(ref f, ref v) => (f, "not_contains", v),
             Contains(ref f, ref v) => (f, "contains", v),
             Exists(ref f, ref v) => (f, "exists", v),
+            In(ref f, ref v) => (f, "in", v)
         };
         write!(f,
                r#"{{"property_name":"{}","property_value":{},"operator":"{}"}}"#,
@@ -218,6 +219,8 @@ pub enum Filter {
     Contains(String, String),
     /// this means ∃a ∈ b
     Exists(String, String),
+    /// this means in
+    In(String, String)
 }
 
 impl Filter {
@@ -274,6 +277,13 @@ impl Filter {
         where T: ToFilterValue
     {
         Filter::Exists(name.into(), value.to_filter())
+    }
+
+    /// Generate a new in operator
+    pub fn isin<T>(name: &str, value: T) -> Filter
+        where T: ToFilterValue
+    {
+        Filter::In(name.into(), value.to_filter())
     }
 }
 
