@@ -323,6 +323,14 @@ impl<'a> ToFilterValue for &'a String {
     }
 }
 
+impl<I: ToFilterValue> ToFilterValue for Vec<I> {
+    fn to_filter(&self) -> String {
+        self.iter().fold(String::new(), |mut acc, elem| {
+            acc.push_str(&elem.to_filter());;
+            acc
+        })
+    }
+}
 /// Type defines a metric to query.
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
