@@ -168,7 +168,7 @@ impl fmt::Display for TimeFrame {
         let s = match *self {
             Relative(ref s) => s.clone(),
             Absolute(ref f, ref t) => {
-                format!(r#"{{"start":"{}","end":"{}"}}"#, f, t)
+                format!(r#"{{"start":"{}","end":"{}"}}"#, f.to_rfc3339(), t.to_rfc3339())
             }
         };
         write!(f, "{}", s)
@@ -388,9 +388,9 @@ fn it_works() {
     let m = Metric::CountUnique("metric1".into());
     let c = "collection_name".into();
     let from = UTC::now() - Duration::days(2);
-    let from_str = format!("{}", from);
+    let from_str = format!("{}", from.to_rfc3339());
     let to = UTC::now();
-    let to_str = format!("{}", to);
+    let to_str = format!("{}", to.to_rfc3339());
     let t = TimeFrame::Absolute(from, to);
     let mut q = cl.query(m, c, t);
     q.group_by("group1")
