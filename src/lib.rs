@@ -51,6 +51,7 @@ impl KeenClient {
             filters: vec![],
             interval: None,
             max_age: None,
+            others: vec![]
         }
     }
 }
@@ -65,6 +66,7 @@ pub struct KeenQuery<'a> {
     group_by: Vec<String>,
     filters: Vec<Filter>,
     interval: Option<Interval>,
+    others: Vec<(String, String)>,
     max_age: Option<usize>,
 }
 
@@ -93,6 +95,12 @@ impl<'a> KeenQuery<'a> {
         self
     }
 
+    /// Other customized parameters that sent to keen io
+    pub fn other(&mut self, key: &str, value: &str) -> &mut KeenQuery<'a> {
+        self.others.push((key.into(), value.into()));
+        self
+    }
+
     /// Generate the query url.
     pub fn url(&self) -> String {
         let mut s = format!("https://api.keen.io/3.\
@@ -108,6 +116,10 @@ impl<'a> KeenQuery<'a> {
                             filters = KeenQuery::format_filter(&self.filters));
         self.interval.as_ref().map(|i| s.push_str(&format!("&interval={}", i)));
         self.max_age.as_ref().map(|a| s.push_str(&format!("&max_age={}", a)));
+
+        for &(ref k, ref v) in self.others.iter() {
+            s.push_str(&format!("&{}={}", k, v));
+        }
         s
     }
 
@@ -398,6 +410,6 @@ fn it_works() {
      .filter(Filter::gt("id", 458888))
      .filter(Filter::lte("id", 460000))
      .interval(Interval::Monthly);
-
-    assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":458888,"operator":"gt"}},{{"property_name":"id","property_value":460000,"operator":"lte"}}]&interval=monthly"#, from_str, to_str));
+    q.other("uuid", "12345678-1234-1234-1234-123456789101");
+    assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":458888,"operator":"gt"}},{{"property_name":"id","property_value":460000,"operator":"lte"}}]&interval=monthly&uuid=12345678-1234-1234-1234-123456789101"#, from_str, to_str));
 }
