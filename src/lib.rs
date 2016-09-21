@@ -43,7 +43,9 @@ impl KeenClient {
     /// Generate a new query with current client.
     pub fn query(&self, m: Metric, c: String, timeframe: TimeFrame) -> KeenQuery {
         KeenQuery {
-            client: self,
+            key: self.key.clone(),
+            project: self.project.clone(),
+            timeout: self.timeout.clone(),
             metric: m,
             collection: c,
             timeframe: timeframe,
@@ -51,15 +53,17 @@ impl KeenClient {
             filters: vec![],
             interval: None,
             max_age: None,
-            others: vec![]
+            others: vec![],
         }
     }
 }
 
 /// Type represents a keen io query
 #[derive(Debug,Clone)]
-pub struct KeenQuery<'a> {
-    client: &'a KeenClient,
+pub struct KeenQuery {
+    key: String,
+    project: String,
+    timeout: Option<time::Duration>,
     metric: Metric,
     collection: String,
     timeframe: TimeFrame,
@@ -70,33 +74,33 @@ pub struct KeenQuery<'a> {
     max_age: Option<usize>,
 }
 
-impl<'a> KeenQuery<'a> {
+impl KeenQuery {
     /// Add a new group by condition to current query.
-    pub fn group_by(&mut self, g: &str) -> &mut KeenQuery<'a> {
+    pub fn group_by(&mut self, g: &str) -> &mut KeenQuery {
         self.group_by.push(g.into());
         self
     }
 
     /// Add a new filter to current query.
-    pub fn filter(&mut self, f: Filter) -> &mut KeenQuery<'a> {
+    pub fn filter(&mut self, f: Filter) -> &mut KeenQuery {
         self.filters.push(f);
         self
     }
 
     /// Add an interval to current query.
-    pub fn interval(&mut self, i: Interval) -> &mut KeenQuery<'a> {
+    pub fn interval(&mut self, i: Interval) -> &mut KeenQuery {
         self.interval = Some(i);
         self
     }
 
     /// Use cache with and set cache timeout to current query.
-    pub fn max_age(&mut self, age: usize) -> &mut KeenQuery<'a> {
+    pub fn max_age(&mut self, age: usize) -> &mut KeenQuery {
         self.max_age = Some(age);
         self
     }
 
     /// Other customized parameters that sent to keen io
-    pub fn other(&mut self, key: &str, value: &str) -> &mut KeenQuery<'a> {
+    pub fn other(&mut self, key: &str, value: &str) -> &mut KeenQuery {
         self.others.push((key.into(), value.into()));
         self
     }
@@ -104,12 +108,10 @@ impl<'a> KeenQuery<'a> {
     /// Generate the query url.
     pub fn url(&self) -> String {
         let mut s = format!("https://api.keen.io/3.\
-                             0/projects/{project}/queries/{metric}api_key={key}&event_collection=\
-                             {collection}&group_by={group}&timezone=UTC&timeframe={timeframe}&fil\
-                             ters={filters}",
-                            project = self.client.project,
+                             0/projects/{project}/queries/{metric}api_key={key}&event_collection={collection}&group_by={group}&timezone=UTC&timeframe={timeframe}&filters={filters}",
+                            project = self.project,
                             metric = self.metric,
-                            key = self.client.key,
+                            key = self.key,
                             collection = self.collection,
                             group = KeenQuery::format_group(&self.group_by),
                             timeframe = self.timeframe,
@@ -127,13 +129,13 @@ impl<'a> KeenQuery<'a> {
         let mut s = String::new();
         s.push('[');
         s.push_str(&g.iter()
-                     .map(|s| {
-                         let mut r = r#"""#.to_owned();
-                         r.push_str(&s);
-                         r.push('"');
-                         r
-                     })
-                     .join(","));
+            .map(|s| {
+                let mut r = r#"""#.to_owned();
+                r.push_str(&s);
+                r.push('"');
+                r
+            })
+            .join(","));
         s.push(']');
         s
     }
@@ -142,16 +144,15 @@ impl<'a> KeenQuery<'a> {
         let mut s = String::new();
         s.push('[');
         s.push_str(&f.iter()
-                     .map(|s| format!("{}", s))
-                     .join(","));
+            .map(|s| format!("{}", s))
+            .join(","));
         s.push(']');
         s
     }
 
     /// Get the query data. The result is a hyper::Result<hyper::client::Response>
     pub fn data(&self) -> hyper::Result<hyper::client::Response> {
-        self.client
-            .timeout
+        self.timeout
             .map(|t| {
                 let mut client = Client::new();
                 client.set_read_timeout(Some(t));
@@ -180,7 +181,9 @@ impl fmt::Display for TimeFrame {
         let s = match *self {
             Relative(ref s) => s.clone(),
             Absolute(ref f, ref t) => {
-                format!(r#"{{"start":"{}","end":"{}"}}"#, f.to_rfc3339(), t.to_rfc3339())
+                format!(r#"{{"start":"{}","end":"{}"}}"#,
+                        f.to_rfc3339(),
+                        t.to_rfc3339())
             }
         };
         write!(f, "{}", s)
@@ -200,7 +203,7 @@ impl fmt::Display for Filter {
             NotContains(ref f, ref v) => (f, "not_contains", v),
             Contains(ref f, ref v) => (f, "contains", v),
             Exists(ref f, ref v) => (f, "exists", v),
-            In(ref f, ref v) => (f, "in", v)
+            In(ref f, ref v) => (f, "in", v),
         };
         write!(f,
                r#"{{"property_name":"{}","property_value":{},"operator":"{}"}}"#,
@@ -232,7 +235,7 @@ pub enum Filter {
     /// this means ∃a ∈ b
     Exists(String, String),
     /// this means in
-    In(String, String)
+    In(String, String),
 }
 
 impl Filter {
@@ -369,8 +372,9 @@ impl fmt::Display for Metric {
             Average(ref s) => write!(f, r#"average?target_property={}&"#, s),
             SelectUnique(ref s) => write!(f, r#"select_unique?target_property={}&"#, s),
             Extraction => write!(f, r#"extraction"#),
-            Percentile(ref s, p) =>
-                write!(f, r#"percentile?target_property={}&percentile={}&"#, s, p),
+            Percentile(ref s, p) => {
+                write!(f, r#"percentile?target_property={}&percentile={}&"#, s, p)
+            }
             Median(ref s) => write!(f, r#"median?target_property={}&"#, s),
         }
     }
@@ -406,10 +410,10 @@ fn it_works() {
     let t = TimeFrame::Absolute(from, to);
     let mut q = cl.query(m, c, t);
     q.group_by("group1")
-     .group_by("group2")
-     .filter(Filter::gt("id", 458888))
-     .filter(Filter::lte("id", 460000))
-     .interval(Interval::Monthly);
+        .group_by("group2")
+        .filter(Filter::gt("id", 458888))
+        .filter(Filter::lte("id", 460000))
+        .interval(Interval::Monthly);
     q.other("uuid", "12345678-1234-1234-1234-123456789101");
     assert_eq!(q.url(), format!(r#"https://api.keen.io/3.0/projects/your project id/queries/count_unique?target_property=metric1&api_key=your keen io api key&event_collection=collection_name&group_by=["group1","group2"]&timezone=UTC&timeframe={{"start":"{}","end":"{}"}}&filters=[{{"property_name":"id","property_value":458888,"operator":"gt"}},{{"property_name":"id","property_value":460000,"operator":"lte"}}]&interval=monthly&uuid=12345678-1234-1234-1234-123456789101"#, from_str, to_str));
 }
