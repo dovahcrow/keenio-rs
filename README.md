@@ -1,4 +1,4 @@
-keenio api v3 binding for rust [![Build Status](https://travis-ci.org/doomsplayer/keenio-rs.png?branch=master)](https://travis-ci.org/doomsplayer/keenio-rs) # 
+keenio api v3 binding for rust [![Build Status](https://travis-ci.org/doomsplayer/keenio-rs.png?branch=master)](https://travis-ci.org/doomsplayer/keenio-rs)
 ======================================
 
 usages are in examples
