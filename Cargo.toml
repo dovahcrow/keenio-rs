@@ -26,6 +26,10 @@ version = "^0.9"
 version = "0.0.90"
 optional = true
 
+[dev-dependencies]
+docopt = "*"
+rustc-serialize = "*"
+
 [features]
 default = []
 dev = ["clippy"]
