@@ -1,6 +1,6 @@
 [package]
 name = "keen"
-version = "1.3.0"
+version = "1.4.0"
 authors = ["Wu Young <doomsplayer@gmail.com>"]
 description = "keen.io api v3.0 for rust"
 homepage = "http://github.com/doomsplayer/keenio-rs.git"
@@ -16,19 +16,19 @@ path = "src/lib.rs"
 name = "keen"
 
 [dependencies]
-chrono = "^0.2"
+chrono = "^0.3"
 itertools = "^0.4"
 
 [dependencies.hyper]
-version = "^0.9"
+version = "0.10"
 
 [dependencies.clippy]
-version = "0.0.90"
+version = "0.0.118"
 optional = true
 
 [dev-dependencies]
-docopt = "*"
-rustc-serialize = "*"
+structopt = "0.0.3"
+structopt-derive = "0.0.3"
 
 [features]
 default = []
