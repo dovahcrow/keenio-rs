@@ -11,11 +11,14 @@
 extern crate chrono;
 extern crate itertools;
 extern crate hyper;
+extern crate hyper_rustls;
 
 use itertools::Itertools;
 use std::*;
 use chrono::*;
 use hyper::Client;
+use hyper::header::Connection;
+use hyper::net::HttpsConnector;
 
 /// A Keen.io client
 #[derive(Debug,Clone)]
@@ -154,7 +157,8 @@ impl KeenQuery {
     pub fn data(&self) -> hyper::Result<hyper::client::Response> {
         self.timeout
             .map(|t| {
-                let mut client = Client::new();
+                let mut client =
+                    Client::with_connector(HttpsConnector::new(hyper_rustls::TlsClient::new()));
                 client.set_read_timeout(Some(t));
                 client.set_write_timeout(Some(t));
                 client
