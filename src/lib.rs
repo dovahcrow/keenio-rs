@@ -17,7 +17,6 @@ use itertools::Itertools;
 use std::*;
 use chrono::*;
 use hyper::Client;
-use hyper::header::Connection;
 use hyper::net::HttpsConnector;
 
 /// A Keen.io client
