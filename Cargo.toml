@@ -1,6 +1,6 @@
 [package]
 name = "keen"
-version = "1.4.1-pre"
+version = "1.4.1"
 authors = ["Wu Young <doomsplayer@gmail.com>"]
 description = "keen.io api v3.0 for rust"
 homepage = "http://github.com/doomsplayer/keenio-rs.git"
